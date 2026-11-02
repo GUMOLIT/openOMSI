@@ -1,0 +1,46 @@
+name: GUMOLIT test build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gumolit-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: System libraries
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq build-essential pkg-config libasound2-dev libudev-dev \
+            libgtk-3-dev libxkbcommon-dev libwayland-dev libssl-dev libwebkit2gtk-4.1-dev
+      - name: Trolley tests and the vehicle crate
+        run: |
+          set -o pipefail
+          { cargo test --locked -p omsi-trolley && cargo check --locked -p omsi-sim --all-targets; } 2>&1 | tee "$RUNNER_TEMP/cargo.log"
+      - name: Size budget
+        run: bash scripts/size-budget.sh
+      - name: Crate layers
+        run: bash scripts/arch-guard.sh
+      - name: Errors as annotations
+        if: failure()
+        run: |
+          grep -E -A14 '^error|panicked at|^failures:|FAILED' "$RUNNER_TEMP/cargo.log" | head -c 60000 > "$RUNNER_TEMP/err.txt" || true
+          [ -s "$RUNNER_TEMP/err.txt" ] || tail -c 6000 "$RUNNER_TEMP/cargo.log" > "$RUNNER_TEMP/err.txt"
+          split -b 3500 "$RUNNER_TEMP/err.txt" "$RUNNER_TEMP/part_"
+          for f in "$RUNNER_TEMP"/part_*; do
+            echo "::error title=cargo::$(sed -e 's/%/%25/g' "$f" | awk 'BEGIN{ORS="%0A"} {print}')"
+          done
+
