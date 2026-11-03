@@ -83,9 +83,8 @@ jobs:
         if: github.ref == 'refs/heads/radio-switches-ci'
         shell: bash
         run: |
-          cargo test --locked -p omsi-trolley radio_ 2>&1 | tee "$RUNNER_TEMP/radio-tests.log"
-          cargo test --locked -p omsi-trolley displays_ 2>&1 | tee -a "$RUNNER_TEMP/radio-tests.log"
-          cargo test --locked -p omsi-trolley switch_sound_ 2>&1 | tee -a "$RUNNER_TEMP/radio-tests.log"
+          set -euo pipefail
+          cargo test --locked -p omsi-trolley 2>&1 | tee "$RUNNER_TEMP/radio-tests.log"
           cargo test --locked -p omsi-audio trolley::tests 2>&1 | tee -a "$RUNNER_TEMP/radio-tests.log"
       - name: Radio test failure summary
         if: failure() && github.ref == 'refs/heads/radio-switches-ci'
